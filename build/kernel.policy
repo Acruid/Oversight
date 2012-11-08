@@ -1,0 +1,38 @@
+# http://dcputoolcha.in/docs/kernels/writing/defaults.html
+
+defaults
+{
+    kernel=../bin/kernel.dkrn16
+    jumplist=../bin/kernel.djmp16
+    symbols=../bin/kernel.dsym16
+    direct-default=false
+    direct-target=executable
+}
+
+format(executable):
+
+    # Magic header
+    write words(0x8A5F, 0x68FF)
+    
+    # Write out the total number of entries in the adjustment table.
+    write total(adjustment)
+    
+    # Write out the address field for each entry.
+    for $i from 0 to total(adjustment)
+        write field(adjustment, $i, address)
+    endfor
+    
+    # Write out the total number of entries in the provided table.
+    write total(provided)
+    # Write out each entry in the provided table.
+    for $i from 0 to total(provided)
+        write field(provided, $i, label_size)
+        write field(provided, $i, label_text) # Important! This is an unpacked string.
+        write field(provided, $i, address)
+    endfor
+    
+    #write the size of the text block
+    write total(code)
+    
+    # And then write out the code.
+    write code

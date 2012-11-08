@@ -1,0 +1,16 @@
+SET PC, __main
+
+;includes go here
+
+:__main
+
+; main init goes here
+
+:KERN_Halt
+SET PC, KERN_Halt
+
+
+; the end of the kernel (heap starts after this)
+:MEM_endKernel
+	DAT 0xDEAD
+	DAT 0xDEAD
