@@ -1,6 +1,26 @@
-@echo off
+::@ECHO OFF
 cd %~dp0
 
-dtasm -s ..\bin\kernel.dsym16 -o ..\bin\kernel.dobj16 ..\src\kernel\main.dasm
-dtld -l kernel --jumplist ..\bin\kernel.djmp16 -o ..\bin\kernel.dkrn16 ..\bin\kernel.dobj16
-copy /B /Y ..\bin\kernel.dkrn16 ..\bin\kernel.bin
+SETLOCAL
+SET BUILDNAME=kernel
+SET OBJLIST=
+
+DEL /Q ..\bin\*.*
+
+IF NOT EXIST ..\bin MKDIR ..\bin
+IF NOT EXIST ..\bin\%BUILDNAME% MKDIR ..\bin\%BUILDNAME%
+CD ..\src\%BUILDNAME%
+
+SETLOCAL DisableDelayedExpansion
+SET "r=%__CD__%"
+FOR /R . %%F IN (*.dasm) DO (
+  SET "p=%%F"
+  SETLOCAL EnableDelayedExpansion
+  ECHO(---- dtasm !p:%r%=!
+  SET OBJLIST=!OBJLIST! %%~nF.dobj16 
+  dtasm -s ..\..\bin\%BUILDNAME%\%%~nF.dsym16 -o ..\..\bin\%BUILDNAME%\%%~nF.dobj16 !p:%r%=!
+)
+
+cd %~dp0\..\bin\%BUILDNAME%
+ECHO ---- dtld
+dtld -l kernel --jumplist ..\%BUILDNAME%.djmp16 -s ..\%BUILDNAME%.dsym16 -o ..\%BUILDNAME%.dkrn16 %OBJLIST%
