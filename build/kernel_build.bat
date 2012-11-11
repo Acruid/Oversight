@@ -1,14 +1,14 @@
-::@ECHO OFF
+@ECHO OFF
 cd %~dp0
 
 SETLOCAL
 SET BUILDNAME=kernel
 SET OBJLIST=
 
-DEL /Q ..\bin\*.*
-
 IF NOT EXIST ..\bin MKDIR ..\bin
+DEL /Q ..\bin\*.*
 IF NOT EXIST ..\bin\%BUILDNAME% MKDIR ..\bin\%BUILDNAME%
+DEL /Q ..\bin\%BUILDNAME%\*.*
 CD ..\src\%BUILDNAME%
 
 SETLOCAL DisableDelayedExpansion

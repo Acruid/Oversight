@@ -1,0 +1,20 @@
+.SECTION CODE
+
+; stubs added to the jumplist
+.JUMP _API_malloc
+.JUMP _API_free
+.JUMP _API_errno
+.JUMP _API_exit
+
+; jumplist stubs
+.IMPORT API_malloc
+:_API_malloc SET PC, API_malloc
+
+.IMPORT API_free
+:_API_free SET PC, API_free
+
+.IMPORT API_errno
+:_API_errno SET PC, API_errno
+
+.IMPORT API_exit
+:_API_exit SET PC, API_exit

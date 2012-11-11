@@ -1,16 +1,19 @@
-SET PC, __main
-
-;includes go here
+; WARNING: this file MUST be first into the linker.
+; atm this is true only because it is the only file in the ./ directory.
+.IMPORT SYS_processInit
+.IMPORT SYS_halt
 
 :__main
+    JSR SYS_processInit ; setup the process sysem
+    
+    JSR SYS_halt ; halt the system
 
-; main init goes here
-
-:KERN_Halt
-SET PC, KERN_Halt
+; ------------------- build the kernel image ----------------
+.JUMP
+.OUTPUT CODE
 
 
 ; the end of the kernel (heap starts after this)
-:MEM_endKernel
-	DAT 0xDEAD
-	DAT 0xDEAD
+.EXPORT ptrKernelHeap
+:ptrKernelHeap
+	DAT 0xDEAD ;ptr to first free region of heap

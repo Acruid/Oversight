@@ -1,0 +1,28 @@
+.IMPORT SYS_MemoryInit
+
+.SECTION CODE
+
+.EXPORT SYS_processInit
+:SYS_processInit
+
+    ; start up the memory system
+    JSR SYS_MemoryInit
+
+    SET PC, POP
+
+
+.EXPORT SYS_halt
+:SYS_halt
+SET PC, SYS_halt
+
+.EXPORT SYS_getActiveProcess
+:SYS_getActiveProcess
+  SET PC, POP
+
+.EXPORT API_errno
+:API_errno
+    SET PC, POP
+
+.EXPORT API_exit
+:API_exit
+    SET PC, POP

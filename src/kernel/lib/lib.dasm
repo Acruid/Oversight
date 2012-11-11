@@ -1,0 +1,95 @@
+; these are basic utility functions
+; they are not allowed to import ANYTHING from the kernel
+
+.SECTION CODE
+
+; int memcmp ( const void * ptr1, const void * ptr2, size_t num );
+.EXPORT LIB_memcmp
+:LIB_memcmp
+
+    :memcmp_loop
+    IFL C, 0x1
+        SET PC, memcmp_nofind
+    SUB C, 0x1
+
+    IFE [A], [B]
+        SET PC, memcmp_continue
+
+    ; not equal, find diff
+    IFL [A], [B]
+        SET A, 0xFFFF ;-1
+    IFG [A], [B]
+        SET A, 0x0001 ; 1
+    SET PC, POP
+
+    :memcmp_continue
+    ADD A, 0x1
+    ADD B, 0x1
+
+    SET PC, memcmp_loop
+
+    :memcmp_nofind
+    SET A, 0
+    SET PC, POP
+
+
+; void * memcpy ( void * destination, const void * source, size_t num );
+.EXPORT LIB_memcpy
+:LIB_memcpy
+    SET PUSH, I
+    SET PUSH, J
+
+    SET I, A
+    SET J, B
+    ADD B, C
+
+    MOD C, 8
+    ADD C, memcpy_toploop
+    SET PC, C ; jump into the loop
+
+        :memcpy_toploop
+        STI [I], [J]
+        STI [I], [J]
+        STI [I], [J]
+        STI [I], [J]
+        STI [I], [J]
+        STI [I], [J]
+        STI [I], [J]
+        STI [I], [J]
+
+        IFN J, B
+            SET PC, memcpy_toploop ; jmp top of loop
+
+    SET J, POP
+    SET I, POP
+    SET PC, POP
+
+
+; void * memset ( void * ptr, int value, size_t num );
+.EXPORT LIB_memset
+:LIB_memset
+    SET PUSH, I
+    SET PUSH, J
+    SET I, A
+    ADD A, C ;A holds the end address now
+
+    MOD C, 8
+    ADD C, memset_toploop
+    SET PC, C ; jump into the loop
+
+        :memset_toploop
+        STI [I], B
+        STI [I], B
+        STI [I], B
+        STI [I], B
+        STI [I], B
+        STI [I], B
+        STI [I], B
+        STI [I], B
+
+        IFN I, A
+            SET PC, memset_toploop
+
+    SET J, POP
+    SET I, POP
+    SET PC, POP

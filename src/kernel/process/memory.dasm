@@ -1,0 +1,381 @@
+.IMPORT ptrKernelHeap
+.IMPORT SYS_getActiveProcess
+.IMPORT LIB_memset
+
+.DEFINE STACK_SIZE 30           ; the size of the kernel stack
+.DEFINE REGIONTABLE_SIZE 128    ; the size of the region table
+.DEFINE MEMREGION_SIZE 512      ; size of each memory block in region table
+
+.SECTION CODE
+
+    :ptrRegionTable    DAT 0xDEAD
+    :ptrStack          DAT 0xDEAD
+
+
+; ----------------- FUNCTIONS -----------------
+
+; retrieves the owning PID of a memory address
+; A -> memory address
+:MEM_getPIDofAddress
+  DIV A, MEMREGION_SIZE
+  ADD A, [ptrRegionTable]
+  SET A, [A]
+  SET PC, POP
+
+; walks over the linked list and locates a space
+; the "open space" returned must be B+1 words long
+; A -> start of linked list
+; B -> number of words
+; A <- start of region
+; B <- length of words
+; C <- last region
+:MEM_LocateSpace
+    sub B, 1 ; Because IFG is a strict inequality, see later.
+    set C, A
+    SUB C, 1
+    SET A, [A]
+:heapfind_loop
+    ife A, 0xFFFF ; Out of memory?
+        set PC, heapfind_nomem
+    ifg [A], B ; region is big enough?
+        set PC, heapfind_found
+    set C, A
+    add A, 1
+    set A, [A]
+    set PC, heapfind_loop
+:heapfind_nomem
+    set A, 0 ; Never a valid address, so means "out of memory".
+:heapfind_found
+    add B, 1 ; Restore X.
+    set PC, POP
+
+
+
+; reserves space in an available area
+:MEM_ReserveSpace
+; Input parameters:
+;     A: the region in which to allocate.
+;     B: the previous free region.
+;        If there is no previous free region, then heapfirst-1.
+;     X: the requested size to allocate.
+    ; Y contains the free space left in the region after allocation.
+    set PUSH, Y
+    set Y, [A] ; First word contains the size of the region.
+    sub Y, X ; From which we remove the requested size.
+    ; Enough free space left to create a new free region?
+    ifg Y, 1; Free region needs 2 words for the header.
+        set PC, heapreserve_split
+    ; There is not enough free space in the region to split, so we reserve the
+    ; full region.  That means, remove the current region from the free region
+    ; list.  To do so, make the next of the previous point to the next of the
+    ; current.
+    add B, 1 ; Next of the previous.
+    add A, 1 ; Next of the current.
+    set [B], [A] ; Make the free region list skip the current region.
+    sub A, 1 ; Restore the registers A and B.
+    sub B, 1
+    set Y, POP
+    set PC, POP
+:heapreserve_split
+    ; We split the current region in two, reserving the first part, and
+    ; making the second part free.
+    set [A], X ; Set the size of the current region.
+    ; Create the new free region.
+    set PUSH, C
+    set C, A
+    add C, X
+    add C, 1 ; Here is the beginning of the free region.
+    sub Y, 1 ; Don't count the header in the size.
+    set [C], Y ; Here is its allocatable size, which excludes the header.
+    ; Make the previous free region point to the new free region.
+    add B, 1 ; Works even if no previous because heapfirst-1.
+    set [B], C
+    sub B, 1 ; Restore B because we just messed it up.
+    ; And make the new free region point to the next free region.
+    add C, 1 ; Next of the new.
+    add A, 1 ; Next of the current.
+    set [C], [A]
+    sub A, 1
+    set C, POP
+    ;
+    set Y, POP
+    set PC, POP
+
+
+
+;memory allocation
+; A -> Number of words
+; B -> Owning Process
+; A <- start of memory
+:mem_malloc
+  SET PUSH, X
+  SET X, A
+  SET A, B
+  JSR proc_getHeap ; A holds the starting address of the heap
+  IFE A, 0
+    SET PC, fail
+
+  SET B, X
+  :locateSpace
+  JSR MEM_LocateSpace ; A holds the location of an open space
+  IFE A, 0
+    SET PC, expandHeap
+
+  ; we have found a suitable location!
+  ; Sanity Check
+  ; A = region to allocate
+  ; B = length to allocate
+  ; C = last memory region (or heapfirst)
+  SET B, C
+  JSR MEM_ReserveSpace
+  ADD A, 1
+  SET PC, pass
+
+  ; expand the heap
+  ; A
+  ; B
+  ; X
+  :expandHeap ; TODO: This.
+    ; since it does not fit, lets see how many pages we need to fit it
+
+    ; now find a free page that has that many adjacent pages after it
+
+    ; register the pages with the program PID
+
+    ; combine the new space into the existing heap
+
+    ; now re-locate the new space
+;    SET PC, locateSpace
+
+  :fail
+  SET A, 0
+
+  :pass
+  SET X, POP
+  SET PC, POP
+
+
+
+; free allocated memory
+; A -> pointer of memory to free
+:mem_free
+  SET PUSH, X
+  SET PUSH, Y
+  SET X, A ; X holds pointer to mem
+  JSR MEM_getPIDofAddress ; translate memory address to owner
+  JSR proc_getHeap ; A holds the starting address of the heap
+  IFE A, 0
+    SET PC, end
+
+    SET Y, A   ; Y holds the heapfirst
+    set C, [A] ; C First free region heapfirst points to
+    SET A, X   ; A holds ptr to mem to be freed
+    SET X, POP
+    sub A, 1   ; A holds ptr to metadata of region to be freed
+    set B, 0   ; B The free region before the current region
+
+    ; SanityCheck:
+    ; A ptr to metadata of region to be freed
+    ; B free region before current region
+    ; C ptr to first free region
+    ; Y adr of heapfirst
+:heapfree_loop_start
+    ifg C, A
+        set PC, heapfree_loop_end ; Found the regions before and after A.
+    set B, C ; Keep searching, going to the next free region.
+    add C, 1 ; The second word of a free region is the address
+    set C, [C] ; of the next free region.
+    set PC, heapfree_loop_start
+:heapfree_loop_end
+    ; We found where to insert.
+    ; Make the previous free region point to the current region.
+    ife B, 0
+        set PC, heapfree_noprev ; There is no previous free region.
+    add B, 1 ; Second word is the pointer to the next region.
+    set [B], A ; Set it to the current region.
+    set PC, heapfree_noprev_end
+:heapfree_noprev
+    set [Y], A ; Set the head of the list to the current region.
+:heapfree_noprev_end
+    ; Make the current region point to the next free region.
+    add A, 1 ; A holds ptr to mem to be freed
+    set [A], C ; Works even if C is 0xffff, marking 'no more regions'.
+    SUB A, 1
+
+    ; SanityCheck:
+    ; A ptr to metadata of current region
+    ; B ptr to metadata region before current region
+    ; C ptr to metadata region after current region
+    ; Y adr of heapfirst
+    SET PUSH, I
+    ; check if the current region can be merged with the previous region
+    IFE B, 0
+      SET PC, noPrevMerge
+    SET I, A
+    SUB I, [B]
+    SUB I, 1
+    IFN I, B ; if true, then there is nothing between these, we can merge
+      SET PC, noPrevMerge
+
+    ; merge that shit!
+    ADD [B], [A]
+    ADD [B], 1
+    ADD B, 1
+    ADD A, 1
+    SET [B], [A]
+
+    :noPrevMerge
+    ; check if the current region can be merged with the next region
+    SET I, C
+    SUB I, [A] ; I holds the difference between ptrs
+    SUB I, 1 ; metadata is size-1
+    IFN I, A ; if true, then there is nothing between these, we can merge
+      SET PC, noNextMerge
+
+    ; merge that shit!
+    ADD [A], [C]
+    ADD [A], 1
+    ADD A, 1
+    ADD C, 1
+    SET [A], [C]
+
+  :noNextMerge
+  SET I, POP
+  SET Y, POP
+  SET PC, POP
+:heapfree_nomem
+    ; We're out of memory, so the region we're freeing becomes the only free
+    ; region.
+    set [A], 0xffff ; Next free region is invalid, because there is none.
+    sub A, 1
+    set [Y], A ; First free region is current region.
+  :end
+  SET Y, POP
+  SET PC, POP
+
+; returns the base address of a PID
+; A -> PID of process
+; A <- base memory region, or 0xFFFF on error
+:getBaseRegion
+  IFN A, 0x1 ; this is not the kernel
+    SET PC, yes
+  SET A, 0x0 ; kernel always starts at 0x0
+  SET PC, POP
+  :yes
+
+  SET A, 0xFFFF ; error
+  SET PC, POP
+
+
+; returns a ptr to the heap of a PID
+; A -> PID of program
+; A <- ptr to heap
+:proc_getHeap
+  IFN A, 0x1 ; this is not the kernel
+    SET PC, yes
+  SET A, ptrKernelHeap
+  SET PC, POP
+  :yes
+  ;TODO: Make this work.
+
+  SET A, 0 ; error
+  SET PC, POP
+
+
+; ----------------- EXPORTS -----------------
+
+; initializes memory system.
+; CAUTION: Assume the kernel starts and is already at 0x0000.
+.EXPORT SYS_MemoryInit
+:SYS_MemoryInit
+
+  ; set the heap pointer
+  SET A, ptrKernelHeap
+  ADD A, 1 ; heap starts directly after the ptrKernelHeap
+
+  ; set aside room for the RegionTable
+  SET [ptrRegionTable], A
+  ADD A, REGIONTABLE_SIZE
+
+  ; set aside room for the Stack
+  SET [ptrStack], A
+  ADD A, STACK_SIZE ; A points to word after stack
+
+  ; move stack into new location
+  SET I, A
+  SUB I, 1 ; move back to last word of stack
+  SET J, 0xFFFF
+  :MEI_while1
+    IFL J, SP
+      SET PC, MEI_while1_exit
+    STD [I], [J]
+    SET PC, MEI_while1
+  :MEI_while1_exit
+  SET SP, I
+  ADD SP, 1 ; IFL causes I to be one under, move it up one
+
+  SET [ptrKernelHeap], A ; a holds ptr to first free area
+
+  ; add next free space node in linked list
+  SET B, 0xFFFF
+  SUB B, A
+  SET [A], B ; size of free area
+  ADD A, 1
+  SET [A], 0xFFFF ; next node (0xFFFF = end of list)
+  SET X, A
+
+  ; set memory of RegionTable to 0
+  SET A, [ptrRegionTable]
+  SET B, 0
+  SET C, REGIONTABLE_SIZE
+  JSR LIB_memset
+
+  ; calculate how many regions of memory the kernel uses
+  SET A, X
+  DIV A, MEMREGION_SIZE
+  IFN EX, 0x0
+    ADD A, 1
+
+  ; write the regions to the RegionTable
+  SET B, [ptrRegionTable]
+  ADD A, B
+  :jmp2 ; while(B < A)
+  IFE B, A
+    SET PC, jmp3
+  SET [B], 0x1
+  ADD B, 1
+  SET PC, jmp2
+  :jmp3
+
+  SET PC, POP
+
+; allocate memory inside of the kernel
+; A -> number of words
+; A <- start of memory, or 0
+.EXPORT SYS_kmalloc
+:SYS_kmalloc
+  SET B, 1
+  SET PC, mem_malloc
+
+; free memory inside of the kernel
+; A -> start of memory region
+.EXPORT SYS_kfree
+:SYS_kfree
+  SET PC, mem_free
+
+; API call from existing userland program
+; A -> number of words to allocate
+; A <- start of allocated memory, or 0
+.EXPORT API_malloc
+:API_malloc
+  SET PUSH, A
+  JSR SYS_getActiveProcess
+  SET B, A
+  SET A, POP
+  SET PC, mem_malloc
+
+; API call from existing userland program
+; A -> start of memory address
+.EXPORT API_free
+:API_free
+  SET PC, mem_free
