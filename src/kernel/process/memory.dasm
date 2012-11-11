@@ -311,18 +311,10 @@
     STD [I], [J]
     SET PC, MEI_while1
   :MEI_while1_exit
+  ADD I, 1 ; IFL causes I to be one under, move it up one
   SET SP, I
-  ADD SP, 1 ; IFL causes I to be one under, move it up one
 
   SET [ptrKernelHeap], A ; a holds ptr to first free area
-
-  ; add next free space node in linked list
-  SET B, 0xFFFF
-  SUB B, A
-  SET [A], B ; size of free area
-  ADD A, 1
-  SET [A], 0xFFFF ; next node (0xFFFF = end of list)
-  SET X, A
 
   ; set memory of RegionTable to 0
   SET A, [ptrRegionTable]
@@ -331,10 +323,12 @@
   JSR LIB_memset
 
   ; calculate how many regions of memory the kernel uses
-  SET A, X
+  SET A, [ptrKernelHeap]
   DIV A, MEMREGION_SIZE
   IFN EX, 0x0
     ADD A, 1
+  ADD A, 1  ; reserve an extra page
+  SET X, A  ; X holds how many pages of memory the kernel takes up
 
   ; write the regions to the RegionTable
   SET B, [ptrRegionTable]
@@ -346,6 +340,16 @@
   ADD B, 1
   SET PC, jmp2
   :jmp3
+
+  ; add next free space node in linked list
+  SET A, X  ; A holds how many pages of memory the kernel takes up
+  MUL A, MEMREGION_SIZE
+  SET B, [ptrKernelHeap]
+  SET C, A  ; C holds ptr to end of pages
+  SUB A, B
+  SET [B], A ; size of free area
+  ADD B, 1
+  SET [B], 0xFFFF ; next node (0xFFFF = end of list)
 
   SET PC, POP
 
