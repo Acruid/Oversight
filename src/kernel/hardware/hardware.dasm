@@ -1,0 +1,54 @@
+.IMPORT SYS_kmalloc
+.IMPORT SYS_halt
+.IMPORT SYS_InterruptHandler
+.IMPORT LIB_memset
+
+.SECTION CODE
+
+:ptrTableSize DAT 0x0000
+:ptrInterruptTable DAT 0x0000
+
+; sets up hardware
+.EXPORT SYS_hardwareInit
+:SYS_hardwareInit
+
+    ; set up interrupt table
+    HWN A ; number of hardware devices connected
+    SET J, A
+    JSR SYS_kmalloc
+    IFE A, 0x0
+        SET PC, SYS_halt
+    SET [ptrInterruptTable], A
+
+    ; clear the new memory
+    SET B, 0x0
+    SET C, J
+    JSR LIB_memset
+
+    ; set IH
+    IAS interruptHandler
+
+    SET PC, POP
+
+; remember to preserve ALL registers besides A and PC
+; A holds the ID of the device
+:interruptHandler
+    SET PUSH, EX
+    SET PUSH, I
+    SUB A, 1
+    SET I, [ptrTableSize]
+    IFG A, I
+        SET PC, ih_gotok
+    SET I, [ptrInterruptTable]
+    ADD I, A
+    IFN [I], 0x0 ; is there an IH for this deviceID?
+        JSR [I]
+    SET PC, ih_end
+
+    :ih_gotok
+        JSR SYS_InterruptHandler
+
+    :ih_end
+    SET I, POP
+    SET EX, POP
+    RFI A

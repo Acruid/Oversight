@@ -2,27 +2,36 @@
 
 .SECTION CODE
 
+; initializes the process system
 .EXPORT SYS_processInit
 :SYS_processInit
-
-    ; start up the memory system
-    JSR SYS_MemoryInit
-
+    JSR SYS_MemoryInit ; start up the memory system
     SET PC, POP
 
-
+; halts the system
 .EXPORT SYS_halt
 :SYS_halt
-SET PC, SYS_halt
+    SET PC, SYS_halt
 
+; handles interrupts in the kernel
+.EXPORT SYS_InterruptHandler
+:SYS_InterruptHandler
+    SET PC, POP
+
+; returns the current active process
+; A -> processID
 .EXPORT SYS_getActiveProcess
 :SYS_getActiveProcess
-  SET PC, POP
+    SET PC, POP
 
+; retrieves error code for last operation
+; A -> error code
 .EXPORT API_errno
 :API_errno
     SET PC, POP
 
+; terminates the calling program
+; A <- return code
 .EXPORT API_exit
 :API_exit
     SET PC, POP

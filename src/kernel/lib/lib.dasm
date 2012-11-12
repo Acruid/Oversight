@@ -38,12 +38,16 @@
 :LIB_memcpy
     SET PUSH, I
     SET PUSH, J
+    SET PUSH, X
 
     SET I, A
     SET J, B
     ADD B, C
 
-    MOD C, 8
+    SET X, C
+    MOD X, 8
+    SET C, 8
+    SUB C, X
     ADD C, memcpy_toploop
     SET PC, C ; jump into the loop
 
@@ -60,6 +64,7 @@
         IFN J, B
             SET PC, memcpy_toploop ; jmp top of loop
 
+    SET X, POP
     SET J, POP
     SET I, POP
     SET PC, POP
@@ -73,7 +78,10 @@
     SET I, A
     ADD A, C ;A holds the end address now
 
-    MOD C, 8
+    SET J, C
+    MOD J, 8
+    SET C, 8
+    SUB C, J
     ADD C, memset_toploop
     SET PC, C ; jump into the loop
 

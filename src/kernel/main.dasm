@@ -1,11 +1,13 @@
 ; WARNING: this file MUST be first into the linker.
 ; atm this is true only because it is the only file in the ./ directory.
 .IMPORT SYS_processInit
+.IMPORT SYS_hardwareInit
 .IMPORT SYS_halt
 
 :__main
     JSR SYS_processInit ; setup the process sysem
-    
+    JSR SYS_hardwareInit ; setup interrupt system
+
     JSR SYS_halt ; halt the system
 
 ; ------------------- build the kernel image ----------------
